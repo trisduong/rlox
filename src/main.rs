@@ -1,37 +1,42 @@
+use clap::{Parser, Subcommand};
 use std::env;
 use std::fs;
 use std::io::{self, Write};
+use std::path::PathBuf;
+use miette::{WrapErr, IntoDiagnostic};
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 3 {
-        writeln!(io::stderr(), "Usage: {} tokenize <filename>", args[0]).unwrap();
-        return;
-    }
+use codecrafters_interpreter::*;
 
-    let command = &args[1];
-    let filename = &args[2];
 
-    match command.as_str() {
-        "tokenize" => {
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Tokenize { filename: PathBuf },
+}
+
+fn main() -> miette::Result<()> {
+    let args = Args::parse();
+    match args.command {
+        Commands::Tokenize { filename } => {
             // You can use print statements as follows for debugging, they'll be visible when running tests.
-            writeln!(io::stderr(), "Logs from your program will appear here!").unwrap();
+            eprintln!("Logs from your program will appear here!");
 
-            let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                writeln!(io::stderr(), "Failed to read file {}", filename).unwrap();
-                String::new()
-            });
+            let file_contents = fs::read_to_string(&filename)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("reading '{}' failed", filename.display()))?;
 
-             // Uncomment this block to pass the first stage
-             if !file_contents.is_empty() {
-                 panic!("Scanner not implemented");
-             } else {
-                 println!("EOF  null"); // Placeholder, remove this line when implementing the scanner
-             }
-        }
-        _ => {
-            writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
-            return;
+            for token in Lexer::new(&file_contents) {
+                let token = token?;
+                println!("{token}");
+            }
         }
     }
+
+    Ok(())
 }
